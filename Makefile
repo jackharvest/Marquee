@@ -1,11 +1,33 @@
 APP_NAME   = Marquee
 BUILD_TYPE = debug
+
+# SDK pin — the no-Xcode build's one piece of environment defence.
+# The macOS 27 SDK declares SwiftUI's @State/@Binding as MACROS, expanded at compile time by
+# libSwiftUIMacros.dylib. That plugin ships inside Xcode's MacOSX platform only, never with the
+# Command Line Tools, so once a CLT update points /Library/Developer/CommandLineTools/SDKs/
+# MacOSX.sdk at 27.0, every `swift build` here dies on the first @State with "external macro
+# implementation type 'SwiftUIMacros.StateMacro' could not be found". The macOS 26 SDK still
+# declares them as ordinary property wrappers, needs no plugin, and targets the same
+# macos14.0 deployment — so when the selected developer dir has no SwiftUI macro plugin and
+# that SDK is installed, build against it. A machine with real Xcode selected finds the plugin
+# and this changes nothing.
+DEV_DIR := $(shell xcode-select -p 2>/dev/null)
+SWIFTUI_MACRO_PLUGIN := $(wildcard \
+  $(DEV_DIR)/Platforms/MacOSX.platform/Developer/usr/lib/swift/host/plugins/libSwiftUIMacros.dylib \
+  $(DEV_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/libSwiftUIMacros.dylib \
+  $(DEV_DIR)/usr/lib/swift/host/plugins/libSwiftUIMacros.dylib)
+LEGACY_SDK := /Library/Developer/CommandLineTools/SDKs/MacOSX26.sdk
+ifeq ($(SWIFTUI_MACRO_PLUGIN),)
+ifneq ($(wildcard $(LEGACY_SDK)),)
+export SDKROOT := $(LEGACY_SDK)
+endif
+endif
 BUILD_DIR  = .build/$(BUILD_TYPE)
 APP_BUNDLE = $(APP_NAME).app
 RESOURCES_DIR = $(APP_BUNDLE)/Contents/Resources
 MACOS_DIR     = $(APP_BUNDLE)/Contents/MacOS
 
-.PHONY: all debug release app run clean
+.PHONY: all debug release app run dmg clean
 
 all: app
 
@@ -44,6 +66,9 @@ app: debug
 
 run: app
 	@open $(APP_BUNDLE)
+
+dmg: app
+	@./tools/build-dmg.sh
 
 clean:
 	@rm -rf .build $(APP_BUNDLE)

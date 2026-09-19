@@ -292,7 +292,7 @@ extension ContentView {
                 themeSwatch(idx: idx, theme: theme)
             }
 
-            Text("v0.36.0")
+            Text("v0.37.0")
                 .font(.system(size: 11, weight: .regular, design: .monospaced))
                 .foregroundStyle(.white.opacity(0.18))
         }

@@ -298,16 +298,20 @@ struct ContentView: View {
             .padding(.trailing, 14)
             .padding(.bottom, 10)
 
-            // Music player — bottom-left, above game info bar
-            MusicPlayerView(
-                zoneFocused: uiFocus == .musicPlayer,
-                focusedControlIdx: musicPlayerFocusIdx,
-                onSettingsOpen: { musicSettingsPanel.open(player: musicPlayer) }
-            )
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
-            .padding(.leading, 16)
-            .padding(.bottom, 16)
-            .zIndex(5)
+            // Music player — bottom-left, above game info bar. Switched off in Preferences ▸
+            // Music it isn't rendered at all; the focus router skips the
+            // zone to match, so keyboard/controller can't land on something invisible.
+            if musicPlayer.isEnabled {
+                MusicPlayerView(
+                    zoneFocused: uiFocus == .musicPlayer,
+                    focusedControlIdx: musicPlayerFocusIdx,
+                    onSettingsOpen: { musicSettingsPanel.open(player: musicPlayer) }
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+                .padding(.leading, 16)
+                .padding(.bottom, 16)
+                .zIndex(5)
+            }
 
             // Input method indicator (+ offline pill when disconnected) — tucked just below the
             // top bar, right-aligned with the view mode buttons
@@ -727,6 +731,9 @@ struct ContentView: View {
             withAnimation(.easeInOut(duration: 1.0)) { coffeeButtonDimmed = true }
         }
 
+        // Plugging a game drive in refreshes the library on its own — no ⌘R, no Settings trip.
+        appState.installVolumeObserver()
+
         // Start loading — isReady fires when all art is fetched
         Task { await appState.loadAllGames() }
 
@@ -784,6 +791,9 @@ struct ContentView: View {
             }
             if ProcessInfo.processInfo.environment["MARQUEE_SELFTEST"] != nil {
                 SelfTests.runUUIDAudit(appState: appState)
+            }
+            if ProcessInfo.processInfo.environment["MARQUEE_SCANTEST"] != nil {
+                SelfTests.runScanCheck()
             }
             if ProcessInfo.processInfo.environment["MARQUEE_SIZECHECK"] != nil {
                 SelfTests.runSizeCheck(appState: appState)

@@ -403,6 +403,9 @@ extension ContentView {
         switch kc {
         case 123:
             if bottomFocusIdx == 0 {
+                // With the widget switched off there's nothing to the left — stay put rather
+                // than focusing a zone that isn't on screen.
+                guard musicPlayer.isEnabled else { break }
                 uiFocus = .musicPlayer; musicPlayerFocusIdx = 1
             } else {
                 bottomFocusIdx -= 1

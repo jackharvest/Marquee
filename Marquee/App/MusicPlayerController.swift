@@ -144,6 +144,21 @@ final class MusicPlayerController {
     var barMagnitudes: [Float] = [Float](repeating: 0, count: 16)
     var isExpanded       = true
     var isStickyEnabled  = false
+    // Master switch for the whole feature: off hides the bottom-left widget
+    // entirely and never starts playback. Not everyone wants a song when they're opening the
+    // launcher to start a game — and the widget sits over the bottom-left corner of the library,
+    // so "I don't use this" and "it's in my way" are the same complaint. Everything else in this
+    // controller keeps working untouched; only `init` and `setEnabled` consult it, so there's no
+    // second code path to keep in sync.
+    var isEnabled: Bool = MusicPlayerController.enabledPreference
+
+    // The same flag read straight from UserDefaults, for the places that need it without a live
+    // controller instance in hand (the pause menu builds its row list from a static context).
+    // `setEnabled` writes it, so this never disagrees with the instance property.
+    static var enabledPreference: Bool {
+        let ud = UserDefaults.standard
+        return ud.object(forKey: "musicPlayerEnabled") == nil ? true : ud.bool(forKey: "musicPlayerEnabled")
+    }
     var trackWeights: [Int] = []   // 0=off, 50=low, 100=normal, 150=high, 200=2×
 
     private var trackURLs:    [URL]    = []
@@ -198,8 +213,28 @@ final class MusicPlayerController {
         try? audio.start()
 
         loadStickyPreference()
+        guard isEnabled else { return }
         let trackToPlay = stickyTrackIndex ?? pickWeightedRandom(excluding: nil)
         playTrack(at: trackToPlay)
+    }
+
+    // Turning it back on starts the same track the app would have opened with; turning it off
+    // stops playback outright rather than pausing, so nothing lingers behind a hidden widget.
+    func setEnabled(_ enabled: Bool) {
+        guard enabled != isEnabled else { return }
+        isEnabled = enabled
+        UserDefaults.standard.set(enabled, forKey: "musicPlayerEnabled")
+        if enabled {
+            playTrack(at: stickyTrackIndex ?? pickWeightedRandom(excluding: nil))
+            isExpanded = true
+            scheduleAutoMinimize()
+        } else {
+            playGeneration += 1        // swallow the completion handler stop() fires
+            audio.player.stop()
+            isPlaying = false
+            isPaused  = false
+            barMagnitudes = [Float](repeating: 0, count: barMagnitudes.count)
+        }
     }
 
     // MARK: - Track Loading

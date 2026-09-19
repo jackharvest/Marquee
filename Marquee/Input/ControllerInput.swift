@@ -207,6 +207,11 @@ final class MusicStickController {
     private weak var musicPlayer: MusicPlayerController?
     private let deadzone: Float = 0.25
 
+    // With the music player switched off in Preferences the widget isn't on screen at all, so
+    // the right stick has nothing to drive — every entry point bails rather than silently
+    // moving a hidden volume slider.
+    private var musicAvailable: Bool { musicPlayer?.isEnabled == true }
+
     init(musicPlayer: MusicPlayerController?) {
         self.musicPlayer = musicPlayer
     }
@@ -217,6 +222,7 @@ final class MusicStickController {
     private var volumeTask: Task<Void, Never>?
 
     func updateVolume(_ value: Float) {
+        guard musicAvailable else { return }
         volumeValue = value
         guard abs(value) >= deadzone else {
             volumeTask?.cancel()
@@ -248,6 +254,7 @@ final class MusicStickController {
     private static let tapWindow: UInt64 = 350_000_000   // held past this = seek, not a skip
 
     func updateSkipSeek(_ value: Float) {
+        guard musicAvailable else { return }
         if !xEngaged, abs(value) >= deadzone {
             xEngaged = true
             isSeeking = false
@@ -292,6 +299,7 @@ final class MusicStickController {
     // MARK: - Click (R3)
 
     func togglePlayPause() {
+        guard musicAvailable else { return }
         musicPlayer?.expand()
         musicPlayer?.toggle()
     }

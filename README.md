@@ -28,7 +28,9 @@ browse, search, and play from — no manual list-building, ever.
 
 - **Seven view modes** — Carousel, Rainbow Slide, Big, Grid, Wall, List, Compact List — ⌘1–7
 - **Every store, found automatically** — CrossOver, Steam, Epic, GOG, Mac App Store, no manual entry
+- **Games on an external drive? Just plug it in** — mounted drives are scanned automatically, and a drive connected while Marquee is open refreshes the library on the spot
 - **Bring your own library** — drag any app or exe onto the window (Plex, emulators, anything) and remove it just as easily
+- **Yours to switch off** — the music player and the hold-to-launch PLAY button are both optional (Settings ▸ Music / Behavior)
 - **A console-style pause menu** — every setting, zero menu bar, controller-first
 - **Boots like a console** — Launch at Login + Start in Full Screen, couch-ready
 - **Updates itself** — checks its own GitHub releases and installs in place, no terminal required
@@ -42,8 +44,8 @@ browse, search, and play from — no manual list-building, ever.
 ## Getting started
 
 Mac only, Apple Silicon — Marquee exists to fill the hole [Playnite](https://playnite.link) leaves on
-the Mac. Grab the latest [release](https://github.com/jackharvest/Marquee/releases/latest): drag
-`Marquee.app` into `/Applications`, or build from source:
+the Mac. Grab the latest [release](https://github.com/jackharvest/Marquee/releases/latest): open the
+`.dmg` and drag `Marquee` into `Applications`, or build from source:
 
 ```bash
 git clone https://github.com/jackharvest/Marquee.git
@@ -67,7 +69,13 @@ needed. Full HDMI/AirPlay setup notes are on the [website](https://jackharvest.c
 ## Where games come from
 
 CrossOver bottles, native Steam, Epic, GOG, and Mac App Store games — each detected its own way (Start
-Menu shortcuts, `.acf` manifests, bundle markers). Details on the [website](https://jackharvest.com/Marquee/features.html).
+Menu shortcuts, `.acf` manifests, bundle markers). Every connected external drive is scanned too, and
+any drive can be skipped individually in **Settings ▸ Custom Library ▸ External Drives**.
+
+Games somewhere else entirely? Point Marquee at the folder your game `.app` files actually live in —
+**Add Games Folder…** on the empty-library screen, **Library ▸ Add Folder to Scan…**, or just drop the
+folder onto the window. Folders you pick are searched several levels deep, so a shelf like
+`Games/Mac/Indie/…` works as-is. Details on the [website](https://jackharvest.com/Marquee/features.html).
 
 ## Privacy
 

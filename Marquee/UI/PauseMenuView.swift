@@ -167,7 +167,10 @@ enum PauseMenuCategory: Int, CaseIterable {
         case .appearance:
             return [.theme, .backdrop, .motion]
         case .audio:
-            return [.soundEffects, .musicVolume]
+            // No music widget (Preferences ▸ Music) means no music volume to set — the row
+            // would adjust something the user has switched off entirely.
+            return MusicPlayerController.enabledPreference ? [.soundEffects, .musicVolume]
+                                                           : [.soundEffects]
         case .couchMode:
             return [.launchAtLogin, .startInFullScreen]
         case .controller:

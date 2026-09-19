@@ -169,7 +169,36 @@ final class AppState {
     private(set) var playHoldTargetID: UUID?
     private var playHoldTask: Task<Void, Never>?
 
+    // Opt-out: the hold exists to stop ACCIDENTAL launches, which is a real
+    // problem with a controller in a lap and a worthwhile default — but for someone who opens
+    // Marquee to start a game and nothing else, a 1.5s wait on every single launch is friction
+    // with no payoff. Off means a press fires immediately, through the exact same funnel, so
+    // mouse/keyboard/controller stay identical to each other either way.
+    var playHoldEnabled: Bool = {
+        let ud = UserDefaults.standard
+        return ud.object(forKey: "playHoldEnabled") == nil ? true : ud.bool(forKey: "playHoldEnabled")
+    }()
+
+    func setPlayHold(_ enabled: Bool) {
+        playHoldEnabled = enabled
+        UserDefaults.standard.set(enabled, forKey: "playHoldEnabled")
+        if !enabled { cancelPlayHold() }
+    }
+
+    // Instant-launch mode only: the game and moment of the last launch. Key auto-repeat fires
+    // keyDown over and over while the key is down, and with no hold to absorb that each repeat
+    // would be a fresh launch — GameSessionManager re-foregrounds an already-running game
+    // rather than de-duplicating, so the guard belongs here.
+    private var lastInstantLaunch: (id: UUID, at: Date)?
+
     func beginPlayHold(_ game: Game, onComplete: @escaping () -> Void) {
+        guard playHoldEnabled else {
+            if let last = lastInstantLaunch, last.id == game.id,
+               Date().timeIntervalSince(last.at) < 2.0 { return }
+            lastInstantLaunch = (game.id, Date())
+            onComplete()
+            return
+        }
         guard playHoldTargetID != game.id else { return }   // already holding this exact game
         playHoldTask?.cancel()
         let targetID = game.id
@@ -471,6 +500,63 @@ final class AppState {
         Task { await loadAllGames() }
     }
 
+    // MARK: - External drives
+
+    func setScanExternalDrives(_ enabled: Bool) {
+        CustomSource.setScanExternalDrives(enabled)
+        customLibraryVersion += 1
+        showToast(enabled ? "Scanning external drives for games" : "External drives no longer scanned")
+        Task { await loadAllGames() }
+    }
+
+    func setVolumeExcluded(_ path: String, excluded: Bool) {
+        CustomSource.setVolumeExcluded(path, excluded: excluded)
+        customLibraryVersion += 1
+        Task { await loadAllGames() }
+    }
+
+    // Plugging a game drive in should be the whole interaction — no refresh, no Settings trip.
+    // NSWorkspace's mount notifications fire on the main thread for every volume (including
+    // ones we'll never scan), so the refresh is gated on the drive actually being in scope and
+    // debounced: a drive with several partitions mounts them in a burst.
+    private var volumeRefreshTask: Task<Void, Never>?
+
+    func installVolumeObserver() {
+        let center = NSWorkspace.shared.notificationCenter
+        for name in [NSWorkspace.didMountNotification, NSWorkspace.didUnmountNotification] {
+            center.addObserver(forName: name, object: nil, queue: .main) { [weak self] note in
+                guard let url = note.userInfo?[NSWorkspace.volumeURLUserInfoKey] as? URL else { return }
+                MainActor.assumeIsolated {
+                    self?.volumeDidChange(url, mounted: name == NSWorkspace.didMountNotification)
+                }
+            }
+        }
+    }
+
+    private func volumeDidChange(_ url: URL, mounted: Bool) {
+        let path = url.standardizedFileURL.path
+        let inScanFolders = CustomSource.scanFolders.contains {
+            path == $0 || path.hasPrefix($0 + "/") || $0.hasPrefix(path + "/")
+        }
+        let autoScanned = CustomSource.scanExternalDrives && !CustomSource.isVolumeExcluded(path)
+            && CustomSource.externalVolumes().contains { $0.standardizedFileURL.path == path }
+        // An unmount can't be confirmed against the live volume list (it's already gone), so a
+        // disappearing drive always refreshes when external scanning is on — its games have to
+        // leave the library either way.
+        guard inScanFolders || autoScanned || (!mounted && CustomSource.scanExternalDrives) else { return }
+
+        if mounted {
+            showToast("Scanning “\(CustomSource.volumeName(url))” for games")
+        }
+        volumeRefreshTask?.cancel()
+        volumeRefreshTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            guard !Task.isCancelled else { return }
+            await self?.loadAllGames()
+            self?.customLibraryVersion += 1
+        }
+    }
+
     func setCustomGameBottle(_ entry: CustomGameEntry, bottle: String) {
         var updated = entry
         updated.bottle = bottle
@@ -571,7 +657,7 @@ final class AppState {
         let ud = UserDefaults.standard
         ["appTheme", "motionEnabled", "heroBackgroundEnabled", "soundEffectsEnabled",
          "sortOption", "dateInstalledAscending", "startupViewMode", "startupSourceFilter",
-         "startInFullScreen",
+         "startInFullScreen", "playHoldEnabled",
         ].forEach { ud.removeObject(forKey: $0) }
         currentTheme = .outerspace
         motionEnabled = true
@@ -582,6 +668,7 @@ final class AppState {
         startupViewMode = .carousel
         startupSourceFilter = .all
         startInFullScreen = false
+        playHoldEnabled = true
         // Launch at Login is deliberately NOT reset — it's a system-level login item the user
         // may have set up on purpose for a couch box; System Settings can always remove it.
     }

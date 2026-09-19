@@ -182,6 +182,67 @@ struct SettingsView: View {
                 }
             }
 
+            PreferenceRow(icon: "externaldrive.fill", iconColor: .orange,
+                          title: "External Drives",
+                          subtitle: "Plug a drive in and its games show up — no folder to pick") {
+                let _ = appState.customLibraryVersion
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 8) {
+                        Text("Scan every drive that's plugged in")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.white.opacity(0.55))
+                        Spacer()
+                        Toggle("", isOn: Binding(get: { CustomSource.scanExternalDrives },
+                                                  set: { appState.setScanExternalDrives($0) }))
+                            .toggleStyle(.switch)
+                            .controlSize(.small)
+                            .tint(Self.accent)
+                            .labelsHidden()
+                    }
+
+                    // What's actually mounted right now, so "is my drive being scanned?" is a
+                    // question the panel answers instead of one the user has to test by
+                    // refreshing. Each one can be waved off individually — a Time Machine or
+                    // media disk has no games and shouldn't be walked on every refresh.
+                    if CustomSource.scanExternalDrives {
+                        let volumes = CustomSource.externalVolumes()
+                        if volumes.isEmpty {
+                            Text("No external drives connected right now")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.white.opacity(0.4))
+                        } else {
+                            ForEach(volumes, id: \.path) { volume in
+                                let excluded = CustomSource.isVolumeExcluded(volume.path)
+                                HStack(spacing: 8) {
+                                    Image(systemName: "externaldrive")
+                                        .font(.system(size: 12))
+                                        .foregroundStyle(.white.opacity(excluded ? 0.3 : 0.75))
+                                    VStack(alignment: .leading, spacing: 1) {
+                                        Text(CustomSource.volumeName(volume))
+                                            .font(.system(size: 12, weight: .medium))
+                                            .foregroundStyle(.white.opacity(excluded ? 0.45 : 1))
+                                        Text(driveStatus(volume.path, excluded: excluded))
+                                            .font(.system(size: 9))
+                                            .foregroundStyle(.white.opacity(0.5))
+                                    }
+                                    Spacer()
+                                    Toggle("", isOn: Binding(
+                                        get: { !CustomSource.isVolumeExcluded(volume.path) },
+                                        set: { appState.setVolumeExcluded(volume.path, excluded: !$0) }))
+                                        .toggleStyle(.switch)
+                                        .controlSize(.mini)
+                                        .tint(Self.accent)
+                                        .labelsHidden()
+                                }
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 6)
+                                .background(RoundedRectangle(cornerRadius: 7).fill(Color.white.opacity(0.04)))
+                            }
+                        }
+                    }
+                }
+            }
+
             PreferenceRow(icon: "plus.app.fill", iconColor: .indigo,
                           title: "Added Games",
                           subtitle: "Individually added apps and Windows exes — drag & drop works too") {
@@ -238,6 +299,18 @@ struct SettingsView: View {
                     addButton("Add Game…") { appState.promptAddGame() }
                 }
             }
+        }
+    }
+
+    // A drive's one-line status: what the last scan of it found, which is the thing that tells
+    // the user whether leaving it switched on is buying them anything.
+    private func driveStatus(_ path: String, excluded: Bool) -> String {
+        if excluded { return "Skipped" }
+        switch CustomSource.volumeScanResult(path) {
+        case .none:    return "Scanned for games"
+        case .some(0): return "No games found here"
+        case .some(1): return "1 game found"
+        case .some(let n): return "\(n) games found"
         }
     }
 
@@ -302,6 +375,15 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 10) {
             sectionLabel("Music")
 
+            ToggleRow(icon: "music.note", iconColor: .purple,
+                      title: "Music Player",
+                      subtitle: "The player in the bottom-left corner, and its background music",
+                      isOn: Binding(get: { musicPlayer.isEnabled },
+                                     set: { musicPlayer.setEnabled($0) }))
+
+            // Volume and startup song only mean something while there's a player to hear —
+            // with it switched off they'd be controls for a feature that isn't running.
+            if musicPlayer.isEnabled {
             PreferenceRow(icon: volumeGlyph, iconColor: .green,
                           title: "Volume", subtitle: "Background music level") {
                 HStack(spacing: 10) {
@@ -344,6 +426,7 @@ struct SettingsView: View {
                 }
                 .menuStyle(.borderlessButton)
             }
+            }
         }
     }
 
@@ -352,6 +435,15 @@ struct SettingsView: View {
     private var behaviorSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             sectionLabel("Behavior")
+
+            ToggleRow(icon: appState.playHoldEnabled ? "timer" : "play.circle.fill",
+                      iconColor: .green,
+                      title: "Hold PLAY to Launch",
+                      subtitle: appState.playHoldEnabled
+                          ? "Hold for a moment to start a game — guards against a stray button press"
+                          : "A single click, key, or button press starts the game right away",
+                      isOn: Binding(get: { appState.playHoldEnabled },
+                                     set: { appState.setPlayHold($0) }))
 
             ToggleRow(icon: appState.soundEffectsEnabled ? "speaker.wave.2.fill" : "speaker.slash.fill",
                       iconColor: .blue,
